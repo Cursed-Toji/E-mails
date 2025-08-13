@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Visualizar e Filtrar CSV</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        h2 {
+            color: #337ab7;
+            margin-bottom: 20px;
+        }
+        input#filtro {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #337ab7;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Visualizador de Planilha CSV</h2>
+
+    <input type="text" id="filtro" placeholder="Pesquisar em qualquer coluna..." onkeyup="filtrarTabela()">
+
+    <table id="tabela"></table>
+
+    <script>
+        let dadosDoCSV = [];
+        const tabela = document.getElementById("tabela");
+        const inputFiltro = document.getElementById("filtro");
+
+        function criarTabela(dados) {
+            tabela.innerHTML = '';
+
+            if (dados.length > 0) {
+                let headerRow = tabela.createTHead().insertRow();
+                Object.keys(dados[0]).forEach(col => {
+                    let th = document.createElement("th");
+                    th.textContent = col;
+                    th.addEventListener('click', () => ordenarTabela(col));
+                    headerRow.appendChild(th);
+                });
+
+                let corpoTabela = tabela.createTBody();
+                dados.forEach(row => {
+                    let tr = corpoTabela.insertRow();
+                    Object.values(row).forEach(val => {
+                        let td = tr.insertCell();
+                        td.textContent = val;
+                    });
+                });
+            }
+        }
+
+        function filtrarTabela() {
+            const termo = inputFiltro.value.toLowerCase();
+
+            if (termo === '') {
+                criarTabela(dadosDoCSV);
+                return;
+            }
+
+            const dadosFiltrados = dadosDoCSV.filter(row => {
+                return Object.values(row).some(val =>
+                    String(val).toLowerCase().includes(termo)
+                );
+            });
+
+            criarTabela(dadosFiltrados);
+        }
+        
+        let colunaOrdenada = null;
+        let ordemAscendente = true;
+
+        function ordenarTabela(coluna) {
+            if (colunaOrdenada === coluna) {
+                ordemAscendente = !ordemAscendente;
+            } else {
+                colunaOrdenada = coluna;
+                ordemAscendente = true;
+            }
+
+            dadosDoCSV.sort((a, b) => {
+                const valorA = a.hasOwnProperty(coluna) ? a[coluna] : '';
+                const valorB = b.hasOwnProperty(coluna) ? b[coluna] : '';
+
+                if (typeof valorA === 'number' && typeof valorB === 'number') {
+                    return ordemAscendente ? valorA - valorB : valorB - valorA;
+                } else {
+                    const comparacao = String(valorA).localeCompare(String(valorB), 'pt-BR', { sensitivity: 'base', numeric: true });
+                    return ordemAscendente ? comparacao : comparacao * -1;
+                }
+            });
+
+            criarTabela(dadosDoCSV);
+        }
+
+        function carregarCSVComCodificacaoCorreta() {
+            fetch('Pasta1.csv')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Erro ao carregar o arquivo CSV. Verifique o nome e se ele está na mesma pasta.');
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    let parsed = Papa.parse(data, {
+                        header: true,
+                        encoding: 'ISO-8859-1'
+                    });
+                    
+                    if (parsed.data && parsed.data.length > 0 && Object.keys(parsed.data[0]).some(key => key.includes(''))) {
+                         console.log("Falha na decodificação com ISO-8859-1. Tentando UTF-8.");
+                         parsed = Papa.parse(data, {
+                             header: true,
+                             encoding: 'UTF-8'
+                         });
+                     }
+                    
+                    dadosDoCSV = parsed.data;
+                    criarTabela(dadosDoCSV);
+                })
+                .catch(error => console.error("Erro:", error));
+        }
+
+        carregarCSVComCodificacaoCorreta();
+
+    </script>
+</body>
+</html>
